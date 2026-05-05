@@ -6,18 +6,21 @@ import { motion } from 'framer-motion';
 import { AlertTriangle, CheckCircle2, UploadCloud, CarFront, DollarSign, Sparkles } from 'lucide-react';
 import { useTheme } from '@/context/ThemeContext';
 import { createAdminVehicle } from '@/services/adminApi';
+import { useAuth } from '@/context/AuthContext';
+import { hasVerifiedLicense } from '@/lib/licenseGate';
 import { AdminVehicle } from '@/types';
+import { FUEL_TYPES, TRANSMISSIONS, VEHICLE_TYPES, type FuelType, type TransmissionType, type VehicleType } from '@/db/vehicle-options';
 import HostListingCard from './HostListingCard';
 import { hostPerks, hostSteps } from '../utils/hostData';
 
 interface HostFormState {
   name: string;
-  type: string;
+  type: VehicleType | '';
   image: string;
   pricePerDay: string;
   seats: string;
-  fuel: string;
-  transmission: string;
+  fuel: FuelType | '';
+  transmission: TransmissionType | '';
 }
 
 const emptyForm: HostFormState = {
@@ -32,7 +35,7 @@ const emptyForm: HostFormState = {
 
 const demoForm: HostFormState = {
   name: 'Aston Martin Vantage',
-  type: 'Grand Tourer',
+  type: 'Sports Car',
   image: 'https://images.pexels.com/photos/1402787/pexels-photo-1402787.jpeg?auto=compress&cs=tinysrgb&w=1200',
   pricePerDay: '240',
   seats: '2',
@@ -46,6 +49,7 @@ function formatMoney(value: number) {
 
 export default function HostPage() {
   const { current } = useTheme();
+  const { user } = useAuth();
   const [form, setForm] = useState<HostFormState>(emptyForm);
   const [status, setStatus] = useState<'idle' | 'submitting' | 'success'>('idle');
   const [error, setError] = useState<string | null>(null);
@@ -69,10 +73,10 @@ export default function HostPage() {
     event.preventDefault();
     const trimmed = {
       name: form.name.trim(),
-      type: form.type.trim(),
+      type: form.type,
       image: form.image.trim(),
-      fuel: form.fuel.trim(),
-      transmission: form.transmission.trim(),
+      fuel: form.fuel,
+      transmission: form.transmission,
     };
 
     if (!trimmed.name || !trimmed.type || !trimmed.image || !trimmed.fuel || !trimmed.transmission) {
@@ -84,6 +88,15 @@ export default function HostPage() {
     if (!Number.isFinite(priceValue) || priceValue <= 0 || !Number.isFinite(seatsValue) || seatsValue <= 0) {
       setError('Price and seats must be positive numbers.');
       setStatus('idle');
+      return;
+    }
+
+    if (!user?.id) {
+      setError('Please sign in to publish a listing.');
+      return;
+    }
+    if (!hasVerifiedLicense(user)) {
+      setError('Upload your driver license on your dashboard (Cloudinary). An admin must verify it before you can publish.');
       return;
     }
 
@@ -101,6 +114,7 @@ export default function HostPage() {
         transmission: trimmed.transmission,
         status: 'available',
         approval: 'approved',
+        ownerId: user.id,
       });
 
       setListings((prev) => [response.data, ...prev]);
@@ -115,12 +129,6 @@ export default function HostPage() {
 
   const handleReset = () => {
     setForm(emptyForm);
-    setStatus('idle');
-    setError(null);
-  };
-
-  const handleDemoFill = () => {
-    setForm(demoForm);
     setStatus('idle');
     setError(null);
   };
@@ -167,39 +175,109 @@ export default function HostPage() {
                 <h2 className="text-2xl font-black uppercase tracking-tight">New listing</h2>
                 <p className={`text-sm ${current.subtext}`}>Complete every detail to publish instantly.</p>
               </div>
-              <button
-                type="button"
-                onClick={handleDemoFill}
-                className="inline-flex items-center gap-2 rounded-2xl border border-blue-500/30 bg-blue-500/10 px-4 py-2 text-[10px] font-black uppercase tracking-[0.2em] text-blue-200 hover:bg-blue-500/20 transition-colors"
-              >
-                <CarFront className="w-4 h-4" /> Use demo vehicle
-              </button>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                {[
-                  { key: 'name', label: 'Vehicle name', placeholder: 'BMW 5 Series' },
-                  { key: 'type', label: 'Type', placeholder: 'Sedan' },
-                  { key: 'image', label: 'Hero image URL', placeholder: 'https://...' },
-                  { key: 'pricePerDay', label: 'Price per day', placeholder: '95', type: 'number' },
-                  { key: 'seats', label: 'Seats', placeholder: '5', type: 'number' },
-                  { key: 'fuel', label: 'Fuel', placeholder: 'Petrol' },
-                  { key: 'transmission', label: 'Transmission', placeholder: 'Auto' },
-                ].map((field) => (
-                  <div key={field.key} className="space-y-2">
-                    <label className={`text-[10px] font-black uppercase tracking-[0.2em] ${current.subtext}`}>
-                      {field.label}
-                    </label>
-                    <input
-                      type={field.type ?? 'text'}
-                      value={form[field.key as keyof HostFormState]}
-                      onChange={(event) => handleChange(field.key as keyof HostFormState, event.target.value)}
-                      placeholder={field.placeholder}
-                      className={`w-full rounded-2xl border ${current.card} px-4 py-3 text-sm outline-none focus:border-blue-500/60 transition-colors`}
-                    />
-                  </div>
-                ))}
+                <div className="space-y-2">
+                  <label className={`text-[10px] font-black uppercase tracking-[0.2em] ${current.subtext}`}>
+                    Vehicle name
+                  </label>
+                  <input
+                    type="text"
+                    value={form.name}
+                    onChange={(event) => handleChange('name', event.target.value)}
+                    placeholder="BMW 5 Series"
+                    className={`w-full rounded-2xl border ${current.card} px-4 py-3 text-sm outline-none focus:border-blue-500/60 transition-colors`}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className={`text-[10px] font-black uppercase tracking-[0.2em] ${current.subtext}`}>
+                    Type
+                  </label>
+                  <select
+                    value={form.type}
+                    onChange={(event) => handleChange('type', event.target.value as VehicleType | '')}
+                    className={`w-full rounded-2xl border ${current.card} px-4 py-3 text-sm outline-none focus:border-blue-500/60 transition-colors`}
+                  >
+                    <option value="">Select type...</option>
+                    {VEHICLE_TYPES.map((t) => (
+                      <option key={t} value={t}>{t}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-2">
+                  <label className={`text-[10px] font-black uppercase tracking-[0.2em] ${current.subtext}`}>
+                    Hero image URL
+                  </label>
+                  <input
+                    type="text"
+                    value={form.image}
+                    onChange={(event) => handleChange('image', event.target.value)}
+                    placeholder="https://..."
+                    className={`w-full rounded-2xl border ${current.card} px-4 py-3 text-sm outline-none focus:border-blue-500/60 transition-colors`}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className={`text-[10px] font-black uppercase tracking-[0.2em] ${current.subtext}`}>
+                    Price per day
+                  </label>
+                  <input
+                    type="number"
+                    value={form.pricePerDay}
+                    onChange={(event) => handleChange('pricePerDay', event.target.value)}
+                    placeholder="95"
+                    className={`w-full rounded-2xl border ${current.card} px-4 py-3 text-sm outline-none focus:border-blue-500/60 transition-colors`}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className={`text-[10px] font-black uppercase tracking-[0.2em] ${current.subtext}`}>
+                    Seats
+                  </label>
+                  <input
+                    type="number"
+                    value={form.seats}
+                    onChange={(event) => handleChange('seats', event.target.value)}
+                    placeholder="5"
+                    className={`w-full rounded-2xl border ${current.card} px-4 py-3 text-sm outline-none focus:border-blue-500/60 transition-colors`}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className={`text-[10px] font-black uppercase tracking-[0.2em] ${current.subtext}`}>
+                    Fuel
+                  </label>
+                  <select
+                    value={form.fuel}
+                    onChange={(event) => handleChange('fuel', event.target.value as FuelType | '')}
+                    className={`w-full rounded-2xl border ${current.card} px-4 py-3 text-sm outline-none focus:border-blue-500/60 transition-colors`}
+                  >
+                    <option value="">Select fuel...</option>
+                    {FUEL_TYPES.map((f) => (
+                      <option key={f} value={f}>{f}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-2">
+                  <label className={`text-[10px] font-black uppercase tracking-[0.2em] ${current.subtext}`}>
+                    Transmission
+                  </label>
+                  <select
+                    value={form.transmission}
+                    onChange={(event) => handleChange('transmission', event.target.value as TransmissionType | '')}
+                    className={`w-full rounded-2xl border ${current.card} px-4 py-3 text-sm outline-none focus:border-blue-500/60 transition-colors`}
+                  >
+                    <option value="">Select transmission...</option>
+                    {TRANSMISSIONS.map((t) => (
+                      <option key={t} value={t}>{t}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               {error && (

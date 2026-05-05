@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { LogIn, UserPlus, CarFront, Palette, Menu, X, LogOut } from 'lucide-react';
+import { LogIn, UserPlus, CarFront, Palette, Menu, X, LogOut, ChevronDown, LayoutDashboard, Shield } from 'lucide-react';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 
@@ -13,6 +13,7 @@ export default function Navbar() {
   const { role, logout } = useAuth();
   const pathname = usePathname();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false);
 
   const navItems = [
     { name: 'Home', path: '/' },
@@ -20,12 +21,7 @@ export default function Navbar() {
     { name: 'Why Us', path: '/why-us' },
     { name: 'List Your Car', path: '/host' },
   ];
-
-  if (role === 'admin') {
-    navItems.push({ name: 'Admin', path: '/admin' });
-  } else {
-    navItems.push({ name: 'Dashboard', path: '/dashboard' });
-  }
+  const accountPath = role === 'admin' ? '/admin' : '/dashboard';
 
   return (
     <nav className="fixed top-0 left-0 w-full z-50 px-6 py-8">
@@ -59,12 +55,55 @@ export default function Navbar() {
         {/* ACTIONS */}
         <div className="flex items-center gap-4 relative z-[60]">
           {role ? (
-            <button
-              onClick={logout}
-              className={`hidden sm:flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest hover:opacity-70 ${current.text}`}
-            >
-              <LogOut className="w-4 h-4" /> Logout
-            </button>
+            <div className="hidden sm:block relative">
+              <button
+                type="button"
+                onClick={() => setIsAccountMenuOpen((v) => !v)}
+                className={`inline-flex items-center gap-2 text-[11px] font-black uppercase tracking-widest hover:opacity-80 ${current.text}`}
+                aria-haspopup="menu"
+                aria-expanded={isAccountMenuOpen}
+              >
+                Account <ChevronDown className={`w-4 h-4 transition-transform ${isAccountMenuOpen ? 'rotate-180' : ''}`} />
+              </button>
+
+              <AnimatePresence>
+                {isAccountMenuOpen && (
+                  <>
+                    <button
+                      type="button"
+                      aria-label="Close account menu"
+                      onClick={() => setIsAccountMenuOpen(false)}
+                      className="fixed inset-0 z-40 cursor-default"
+                    />
+                    <motion.div
+                      initial={{ opacity: 0, y: -8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -8 }}
+                      className={`absolute right-0 mt-3 z-50 w-56 rounded-2xl border border-white/10 ${current.navBg} backdrop-blur-2xl overflow-hidden shadow-2xl`}
+                      role="menu"
+                    >
+                      <Link
+                        href={accountPath}
+                        onClick={() => setIsAccountMenuOpen(false)}
+                        className={`flex items-center gap-3 px-4 py-3 text-[11px] font-black uppercase tracking-widest hover:bg-white/5 ${current.text}`}
+                        role="menuitem"
+                      >
+                        {role === 'admin' ? <Shield className="w-4 h-4 opacity-80" /> : <LayoutDashboard className="w-4 h-4 opacity-80" />}
+                        {role === 'admin' ? 'Admin' : 'Dashboard'}
+                      </Link>
+                      <button
+                        type="button"
+                        onClick={() => { setIsAccountMenuOpen(false); void logout(); }}
+                        className={`w-full flex items-center gap-3 px-4 py-3 text-[11px] font-black uppercase tracking-widest hover:bg-white/5 ${current.text}`}
+                        role="menuitem"
+                      >
+                        <LogOut className="w-4 h-4 opacity-80" /> Logout
+                      </button>
+                    </motion.div>
+                  </>
+                )}
+              </AnimatePresence>
+            </div>
           ) : (
             <>
               <Link href="/login" className={`hidden sm:flex items-center gap-2 text-[11px] font-bold uppercase tracking-widest hover:opacity-70 ${current.text}`}>
@@ -113,6 +152,15 @@ export default function Navbar() {
                   {item.name}
                 </Link>
               ))}
+              {role && (
+                <Link
+                  href={accountPath}
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className={`block text-4xl font-black uppercase tracking-tighter hover:text-blue-500 transition-colors ${current.text}`}
+                >
+                  {role === 'admin' ? 'Admin' : 'Dashboard'}
+                </Link>
+              )}
             </div>
 
             <div className="mt-auto space-y-4">

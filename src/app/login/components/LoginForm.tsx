@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -10,13 +10,20 @@ import { useAuth } from '@/context/AuthContext';
 
 export default function LoginForm() {
   const { current } = useTheme();
-  const { login } = useAuth();
+  const { login, role, loading } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
+
+  // If a session already exists, don't show the login UI.
+  useEffect(() => {
+    if (loading) return;
+    if (!role) return;
+    router.replace(role === 'admin' ? '/admin' : '/dashboard');
+  }, [loading, role, router]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -28,7 +35,7 @@ export default function LoginForm() {
       setError(result.error ?? 'Unable to sign in.');
       return;
     }
-    router.push(result.role === 'admin' ? '/admin' : '/dashboard');
+    router.replace(result.role === 'admin' ? '/admin' : '/dashboard');
   };
 
   return (

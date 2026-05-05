@@ -7,8 +7,17 @@ import { AdminEmptyState, AdminErrorState, AdminLoadingState } from '@/component
 import { useTheme } from '@/context/ThemeContext';
 import { createAdminVehicle, deleteAdminVehicle, listAdminVehicles, setVehicleApproval, setVehicleAvailability, updateAdminVehicle } from '@/services/adminApi';
 import { AdminVehicle } from '@/types';
+import { FUEL_TYPES, TRANSMISSIONS, VEHICLE_TYPES, type FuelType, type TransmissionType, type VehicleType } from '@/db/vehicle-options';
 
-interface VehicleForm { name: string; type: string; image: string; pricePerDay: string; seats: string; fuel: string; transmission: string; }
+interface VehicleForm {
+  name: string;
+  type: VehicleType | '';
+  image: string;
+  pricePerDay: string;
+  seats: string;
+  fuel: FuelType | '';
+  transmission: TransmissionType | '';
+}
 const emptyForm: VehicleForm = { name: '', type: '', image: '', pricePerDay: '', seats: '', fuel: '', transmission: '' };
 
 function approvalBadge(approval: AdminVehicle['approval']) {
@@ -55,11 +64,11 @@ export default function AdminVehicles() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const pricePerDay = Number(form.pricePerDay); const seats = Number(form.seats);
-    if (!form.name.trim() || !form.type.trim() || !form.image.trim() || !form.fuel.trim() || !form.transmission.trim()) { setError('Please fill all required fields.'); return; }
+    if (!form.name.trim() || !form.type || !form.image.trim() || !form.fuel || !form.transmission) { setError('Please fill all required fields.'); return; }
     if (!Number.isFinite(pricePerDay) || !Number.isFinite(seats) || pricePerDay <= 0 || seats <= 0) { setError('Price and seats must be positive numbers.'); return; }
     setError(null); setBusyId(editingId ?? 'create');
     try {
-      const n = { name: form.name.trim(), type: form.type.trim(), image: form.image.trim(), pricePerDay, seats, fuel: form.fuel.trim(), transmission: form.transmission.trim() };
+      const n = { name: form.name.trim(), type: form.type, image: form.image.trim(), pricePerDay, seats, fuel: form.fuel, transmission: form.transmission };
       if (editingId) { await updateAdminVehicle(editingId, n); }
       else { await createAdminVehicle({ ...n, status: 'available', approval: 'pending' }); }
       resetForm(); await loadVehicles(search);
@@ -128,10 +137,42 @@ export default function AdminVehicles() {
           {formFields.map((field) => (
             <div key={field.key} className="space-y-1">
               <label className="text-[10px] font-black uppercase tracking-[0.2em] opacity-50">{field.label}</label>
-              <input type={field.type ?? 'text'} value={form[field.key as keyof VehicleForm]}
-                onChange={(e) => setForm(p => ({ ...p, [field.key]: e.target.value }))}
-                placeholder={field.placeholder}
-                className={`w-full rounded-xl border ${current.card} px-3 py-2.5 text-sm outline-none focus:border-blue-500/50`} />
+              {field.key === 'type' ? (
+                <select
+                  value={form.type}
+                  onChange={(e) => setForm(p => ({ ...p, type: e.target.value as VehicleType | '' }))}
+                  className={`w-full rounded-xl border ${current.card} px-3 py-2.5 text-sm outline-none focus:border-blue-500/50`}
+                >
+                  <option value="">Select type...</option>
+                  {VEHICLE_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                </select>
+              ) : field.key === 'fuel' ? (
+                <select
+                  value={form.fuel}
+                  onChange={(e) => setForm(p => ({ ...p, fuel: e.target.value as FuelType | '' }))}
+                  className={`w-full rounded-xl border ${current.card} px-3 py-2.5 text-sm outline-none focus:border-blue-500/50`}
+                >
+                  <option value="">Select fuel...</option>
+                  {FUEL_TYPES.map((f) => <option key={f} value={f}>{f}</option>)}
+                </select>
+              ) : field.key === 'transmission' ? (
+                <select
+                  value={form.transmission}
+                  onChange={(e) => setForm(p => ({ ...p, transmission: e.target.value as TransmissionType | '' }))}
+                  className={`w-full rounded-xl border ${current.card} px-3 py-2.5 text-sm outline-none focus:border-blue-500/50`}
+                >
+                  <option value="">Select transmission...</option>
+                  {TRANSMISSIONS.map((t) => <option key={t} value={t}>{t}</option>)}
+                </select>
+              ) : (
+                <input
+                  type={field.type ?? 'text'}
+                  value={form[field.key as keyof VehicleForm] as string}
+                  onChange={(e) => setForm(p => ({ ...p, [field.key]: e.target.value }))}
+                  placeholder={field.placeholder}
+                  className={`w-full rounded-xl border ${current.card} px-3 py-2.5 text-sm outline-none focus:border-blue-500/50`}
+                />
+              )}
             </div>
           ))}
         </div>

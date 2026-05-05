@@ -22,7 +22,7 @@ export default function RegisterLeftPanel() {
         </div>
 
         <h1 className="text-4xl lg:text-5xl font-black uppercase tracking-tighter mb-6">Join the Elite</h1>
-        <p className="text-gray-600 mb-12 leading-relaxed">Create your account and unlock access to the world's most exclusive fleet.</p>
+        <p className="text-gray-600 mb-12 leading-relaxed">Create your account and unlock access to the world&apos;s most exclusive fleet.</p>
 
         <div className="space-y-6">
           {features.map((feature, index) => (

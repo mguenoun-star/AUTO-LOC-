@@ -77,6 +77,8 @@ export async function listAdminUsers(search = ''): Promise<AdminApiResponse<Admi
     role: u.role ?? 'user',
     status: u.status ?? 'active',
     createdAt: u.created_at,
+    permis_picture: u.permis_picture ?? null,
+    permis_verified: Boolean(u.permis_verified),
   }));
 
   return wrap('/admin/users', users);
@@ -103,9 +105,39 @@ export async function updateAdminUser(
     role: data.role,
     status: data.status,
     createdAt: data.created_at,
+    permis_picture: data.permis_picture ?? null,
+    permis_verified: Boolean(data.permis_verified),
   };
 
   return wrap(`/admin/users/${id}`, user);
+}
+
+export async function setAdminPermisVerified(
+  id: string,
+  verified: boolean
+): Promise<AdminApiResponse<AdminUser>> {
+  const { data, error } = await supabase
+    .from('profiles')
+    .update({ permis_verified: verified })
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) throw new Error(error.message);
+
+  const user: AdminUser = {
+    id: data.id,
+    name: data.name,
+    email: data.email,
+    phone: data.phone ?? '',
+    role: data.role,
+    status: data.status,
+    createdAt: data.created_at,
+    permis_picture: data.permis_picture ?? null,
+    permis_verified: Boolean(data.permis_verified),
+  };
+
+  return wrap(`/admin/users/${id}/permis`, user);
 }
 
 export async function setAdminUserSuspended(
@@ -130,6 +162,8 @@ export async function setAdminUserSuspended(
     role: data.role,
     status: data.status,
     createdAt: data.created_at,
+    permis_picture: data.permis_picture ?? null,
+    permis_verified: Boolean(data.permis_verified),
   };
 
   return wrap(`/admin/users/${id}/suspend`, user);
@@ -172,7 +206,7 @@ export async function listAdminVehicles(search = ''): Promise<AdminApiResponse<A
 }
 
 export async function createAdminVehicle(
-  input: Omit<AdminVehicle, 'id' | 'updatedAt'>
+  input: Omit<AdminVehicle, 'id' | 'updatedAt'> & { ownerId?: string | null }
 ): Promise<AdminApiResponse<AdminVehicle>> {
   const { data, error } = await supabase
     .from('vehicles')
@@ -186,6 +220,7 @@ export async function createAdminVehicle(
       transmission: input.transmission,
       status: input.status,
       approval: input.approval,
+      owner_id: input.ownerId ?? null,
     })
     .select()
     .single();

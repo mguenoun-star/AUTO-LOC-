@@ -1,3 +1,5 @@
+import type { FuelType, TransmissionType, VehicleType } from '@/db/vehicle-options';
+
 export type ThemeKey = 'luxury' | 'solar' | 'cyber';
 
 export interface ThemeConfig {
@@ -32,7 +34,7 @@ export interface Reservation {
   startDate: string;
   endDate: string;
   total: number;
-  status: 'ongoing' | 'cancelled' | 'completed';
+  status: 'pending' | 'confirmed' | 'ongoing' | 'cancelled' | 'completed';
 }
 
 export type AdminRole = 'admin' | 'manager' | 'support' | 'user';
@@ -45,19 +47,22 @@ export interface AdminUser {
   role: AdminRole;
   status: 'active' | 'suspended';
   createdAt: string;
+  permis_picture: string | null;
+  permis_verified: boolean;
 }
 
 export type VehicleApproval = 'approved' | 'pending' | 'rejected';
+export type { VehicleType, FuelType, TransmissionType } from '@/db/vehicle-options';
 
 export interface AdminVehicle {
   id: string;
   name: string;
-  type: string;
+  type: VehicleType;
   image: string;
   pricePerDay: number;
   seats: number;
-  fuel: string;
-  transmission: string;
+  fuel: FuelType;
+  transmission: TransmissionType;
   status: 'available' | 'unavailable';
   approval: VehicleApproval;
   updatedAt: string;

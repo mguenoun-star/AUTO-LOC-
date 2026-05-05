@@ -1,10 +1,11 @@
 'use client';
 
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 
 type UserRole = 'user' | 'admin' | 'manager' | 'support';
+type UserStatus = 'active' | 'suspended';
 
 interface AppUser {
   id: string;
@@ -12,8 +13,10 @@ interface AppUser {
   email: string;
   phone: string;
   role: UserRole;
-  status: string;
+  status: UserStatus;
   avatar_url?: string;
+  permis_picture?: string | null;
+  permis_verified?: boolean | null;
   created_at: string;
 }
 
@@ -24,6 +27,7 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<{ ok: boolean; role?: UserRole; error?: string }>;
   register: (payload: { name: string; email: string; phone: string; password: string }) => Promise<{ ok: boolean; role?: UserRole; error?: string; requiresEmailConfirmation?: boolean }>;
   logout: () => Promise<void>;
+  refreshProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -33,6 +37,7 @@ const AuthContext = createContext<AuthContextType>({
   login: async () => ({ ok: false, error: 'Auth not ready' }),
   register: async () => ({ ok: false, error: 'Auth not ready' }),
   logout: async () => {},
+  refreshProfile: async () => {},
 });
 
 async function fetchProfile(supabaseUser: SupabaseUser): Promise<AppUser | null> {
@@ -42,7 +47,25 @@ async function fetchProfile(supabaseUser: SupabaseUser): Promise<AppUser | null>
     .eq('id', supabaseUser.id)
     .single();
 
-  if (error || !data) return null;
+  // If the profile row doesn't exist yet (or fetching it fails), keep the app usable:
+  // fall back to auth user metadata instead of treating the user as logged out.
+  if (error || !data) {
+    const meta = (supabaseUser.user_metadata ?? {}) as Record<string, unknown>;
+    const name = typeof meta.name === 'string' ? meta.name : '';
+    const phone = typeof meta.phone === 'string' ? meta.phone : '';
+
+    return {
+      id: supabaseUser.id,
+      name,
+      email: supabaseUser.email ?? '',
+      phone,
+      role: 'user',
+      status: 'active',
+      permis_picture: null,
+      permis_verified: false,
+      created_at: new Date().toISOString(),
+    };
+  }
 
   return {
     id: data.id,
@@ -52,6 +75,8 @@ async function fetchProfile(supabaseUser: SupabaseUser): Promise<AppUser | null>
     role: data.role ?? 'user',
     status: data.status ?? 'active',
     avatar_url: data.avatar_url,
+    permis_picture: data.permis_picture,
+    permis_verified: data.permis_verified ?? false,
     created_at: data.created_at,
   };
 }
@@ -95,6 +120,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       mounted = false;
       subscription.unsubscribe();
     };
+  }, []);
+
+  const refreshProfile = useCallback(async () => {
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (session?.user) {
+        const profile = await fetchProfile(session.user);
+        setUser(profile);
+      }
+    } catch {
+      // ignore
+    }
   }, []);
 
   const login = async (email: string, password: string) => {
@@ -167,6 +206,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           phone,
           role: 'user',
           status: 'active',
+          permis_picture: null,
+          permis_verified: false,
           created_at: new Date().toISOString(),
         });
         return { ok: true, role: 'user' as UserRole };
@@ -186,7 +227,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const role = user?.role ?? null;
 
   return (
-    <AuthContext.Provider value={{ user, role, loading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, role, loading, login, register, logout, refreshProfile }}>
       {children}
     </AuthContext.Provider>
   );

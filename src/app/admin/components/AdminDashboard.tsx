@@ -36,6 +36,7 @@ export default function AdminDashboard() {
     }
   }, []);
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { void loadDashboard(); }, [loadDashboard]);
 
   if (loading) {

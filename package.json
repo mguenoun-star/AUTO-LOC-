@@ -6,7 +6,10 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "gen-types": "npx supabase gen types typescript --project-id rgkcsbjphwjjxxhkikxm > src/db/database.types.ts",
+    "gen-enums": "node scripts/extract-enums.js",
+    "gen-db": "npm run gen-types && npm run gen-enums"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.105.3",

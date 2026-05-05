@@ -1,5 +1,9 @@
 import { supabase } from '@/lib/supabase';
 import { Reservation } from '@/types';
+import type { Database } from '@/db/database.types';
+
+type BookingRow = Database['public']['Tables']['bookings']['Row'];
+type BookingWithVehicle = BookingRow & { vehicles?: { name: string | null; image: string | null } | null };
 
 export const listUserReservations = async (userId: string | null | undefined): Promise<Reservation[]> => {
   if (!userId) return [];
@@ -12,7 +16,7 @@ export const listUserReservations = async (userId: string | null | undefined): P
 
   if (error || !data) return [];
 
-  return data.map((b: any) => ({
+  return (data as BookingWithVehicle[]).map((b) => ({
     id: b.id,
     carName: b.vehicles?.name ?? 'Unknown Vehicle',
     image: b.vehicles?.image ?? '',

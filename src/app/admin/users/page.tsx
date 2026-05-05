@@ -5,7 +5,7 @@ import { Ban, PencilLine, RefreshCw, Save, Search, Trash2, XCircle } from 'lucid
 import AdminTable from '@/components/admin/AdminTable';
 import { AdminEmptyState, AdminErrorState, AdminLoadingState } from '@/components/admin/AdminStates';
 import { useTheme } from '@/context/ThemeContext';
-import { deleteAdminUser, listAdminUsers, setAdminUserSuspended, updateAdminUser } from '@/services/adminApi';
+import { deleteAdminUser, listAdminUsers, setAdminPermisVerified, setAdminUserSuspended, updateAdminUser } from '@/services/adminApi';
 import { AdminRole, AdminUser } from '@/types';
 
 const roleOptions: AdminRole[] = ['admin', 'manager', 'support', 'user'];
@@ -20,6 +20,17 @@ function roleBadge(role: AdminRole) {
 function statusBadge(status: AdminUser['status']) {
   if (status === 'active') return 'bg-emerald-500/20 text-emerald-300 border border-emerald-400/20';
   return 'bg-amber-500/20 text-amber-300 border border-amber-400/20';
+}
+
+function permitBadge(u: AdminUser) {
+  if (u.permis_verified && u.permis_picture) return 'bg-emerald-500/20 text-emerald-300 border border-emerald-400/20';
+  if (u.permis_picture) return 'bg-amber-500/20 text-amber-300 border border-amber-400/20';
+  return 'bg-zinc-500/20 text-zinc-300 border border-zinc-400/20';
+}
+function permitLabel(u: AdminUser) {
+  if (u.permis_verified && u.permis_picture) return 'Approved';
+  if (u.permis_picture) return 'Awaiting review';
+  return 'Missing';
 }
 
 export default function AdminUsers() {
@@ -70,6 +81,19 @@ export default function AdminUsers() {
     catch (err) { setError(err instanceof Error ? err.message : 'Unable to update status'); setBusyId(null); }
   };
 
+  const handleVerifyPermis = async (u: AdminUser) => {
+    if (!u.permis_picture) return;
+    setBusyId(u.id); setError(null);
+    try { await setAdminPermisVerified(u.id, true); await loadUsers(search); }
+    catch (err) { setError(err instanceof Error ? err.message : 'Unable to verify permit'); setBusyId(null); }
+  };
+
+  const handleRevokePermis = async (u: AdminUser) => {
+    setBusyId(u.id); setError(null);
+    try { await setAdminPermisVerified(u.id, false); await loadUsers(search); }
+    catch (err) { setError(err instanceof Error ? err.message : 'Unable to revoke permit'); setBusyId(null); }
+  };
+
   const handleDelete = async (user: AdminUser) => {
     if (!window.confirm(`Delete ${user.name}? This cannot be undone.`)) return;
     setBusyId(user.id); setError(null);
@@ -104,7 +128,7 @@ export default function AdminUsers() {
       {!loading && error && <AdminErrorState title="Users Error" hint={error} />}
       {!loading && !error && users.length === 0 && <AdminEmptyState title="No Users Found" hint={emptyHint} />}
       {!loading && !error && users.length > 0 && (
-        <AdminTable columns={['User', 'Contact', 'Role', 'Status', 'Joined', 'Actions']} minWidth="min-w-[920px]">
+        <AdminTable columns={['User', 'Contact', 'Role', 'Status', 'Permit', 'Joined', 'Actions']} minWidth="min-w-[1100px]">
           {users.map((user) => {
             const isEditing = editingId === user.id;
             const isBusy = busyId === user.id;
@@ -134,6 +158,30 @@ export default function AdminUsers() {
                 </td>
                 <td className="px-5 py-4">
                   <span className={`inline-flex px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-[0.16em] ${statusBadge(user.status)}`}>{user.status}</span>
+                </td>
+                <td className="px-5 py-4 space-y-2 align-top">
+                  <div className="flex flex-col gap-1">
+                    <span className={`inline-flex w-fit px-2 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${permitBadge(user)}`}>{permitLabel(user)}</span>
+                    {user.permis_picture ? (
+                      <a href={user.permis_picture} target="_blank" rel="noopener noreferrer" className={`text-[10px] underline ${current.subtext}`}>Open file</a>
+                    ) : (
+                      <span className={`text-[10px] ${current.subtext}`}>No upload</span>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap gap-1 pt-1">
+                    {!!user.permis_picture && !user.permis_verified && (
+                      <button type="button" disabled={isBusy} onClick={() => void handleVerifyPermis(user)}
+                        className="rounded-lg border border-emerald-400/30 bg-emerald-500/10 px-2 py-1 text-[9px] font-black uppercase tracking-wider text-emerald-200 disabled:opacity-60">
+                        Approve
+                      </button>
+                    )}
+                    {user.permis_verified && (
+                      <button type="button" disabled={isBusy} onClick={() => void handleRevokePermis(user)}
+                        className="rounded-lg border border-white/15 px-2 py-1 text-[9px] font-black uppercase tracking-wider disabled:opacity-60">
+                        Revoke
+                      </button>
+                    )}
+                  </div>
                 </td>
                 <td className="px-5 py-4 text-xs opacity-70">{user.createdAt}</td>
                 <td className="px-5 py-4">

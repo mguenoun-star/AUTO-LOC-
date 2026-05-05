@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -10,7 +10,7 @@ import { useAuth } from '@/context/AuthContext';
 
 export default function RegisterForm() {
   const { current } = useTheme();
-  const { register } = useAuth();
+  const { register, role, loading } = useAuth();
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
@@ -20,6 +20,13 @@ export default function RegisterForm() {
   const [error, setError] = useState<string | null>(null);
   const [isSuccess, setIsSuccess] = useState(false);
   const router = useRouter();
+
+  // If a session already exists, don't show the signup UI.
+  useEffect(() => {
+    if (loading) return;
+    if (!role) return;
+    router.replace(role === 'admin' ? '/admin' : '/dashboard');
+  }, [loading, role, router]);
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -42,7 +49,7 @@ export default function RegisterForm() {
       return;
     }
 
-    router.push('/dashboard');
+    router.replace('/dashboard');
   };
 
   if (isSuccess) {
@@ -58,7 +65,7 @@ export default function RegisterForm() {
           </div>
           <h2 className="text-3xl font-black uppercase tracking-tighter">Check your email</h2>
           <p className={`${current.subtext} mb-8`}>
-            We've sent a confirmation link to <span className="text-white font-bold">{email}</span>. 
+            We&apos;ve sent a confirmation link to <span className="text-white font-bold">{email}</span>. 
             Please click the link to activate your account before signing in.
           </p>
           <Link

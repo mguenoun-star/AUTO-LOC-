@@ -5,21 +5,47 @@ import { motion } from 'framer-motion';
 import Link from 'next/link';
 import {
   User, Mail, Phone, ShieldCheck,
-  Clock, Calendar, CreditCard, ChevronRight,
+  Calendar, CreditCard, ChevronRight,
   TrendingUp, Activity, FileText, Upload, CarFront
 } from 'lucide-react';
 import { useTheme } from '@/context/ThemeContext';
 import { useAuth } from '@/context/AuthContext';
 import { Reservation } from '@/types';
 import { listUserReservations } from '@/services/reservationStore';
+import { uploadLicenseToCloudinary } from '@/lib/cloudinaryUpload';
+import { saveMyPermisPicture } from '@/services/profileService';
+import { hasVerifiedLicense } from '@/lib/licenseGate';
 
 export default function Dashboard() {
   const { current } = useTheme();
-  const { user } = useAuth();
-  const [licenseFile, setLicenseFile] = useState<File | null>(null);
-  const licenseStatus = licenseFile ? 'Uploaded' : 'Pending';
-  const licenseStatusClass = licenseFile ? 'text-green-500' : 'text-red-500';
+  const { user, refreshProfile } = useAuth();
+  const [licenseBusy, setLicenseBusy] = useState(false);
+  const [licenseError, setLicenseError] = useState<string | null>(null);
+  const verified = user ? hasVerifiedLicense(user) : false;
+  const hasPermisUpload = Boolean(user?.permis_picture?.trim());
+  const licenseLabel = verified
+    ? 'Verified'
+    : hasPermisUpload
+      ? 'Pending admin verification'
+      : 'Not uploaded';
+  const licenseStatusClass =
+    verified ? 'text-green-500' : hasPermisUpload ? 'text-amber-500' : 'text-red-500';
   const [reservations, setReservations] = useState<Reservation[]>([]);
+
+  const handleLicenseFile = async (file: File | null) => {
+    if (!file || !user?.id) return;
+    setLicenseBusy(true);
+    setLicenseError(null);
+    try {
+      const url = await uploadLicenseToCloudinary(file);
+      await saveMyPermisPicture(user.id, url);
+      await refreshProfile();
+    } catch (e) {
+      setLicenseError(e instanceof Error ? e.message : 'Upload failed');
+    } finally {
+      setLicenseBusy(false);
+    }
+  };
 
   useEffect(() => {
     const loadReservations = async () => {
@@ -58,10 +84,20 @@ export default function Dashboard() {
                 </div>
               </div>
               <h2 className="text-3xl font-black tracking-tight mb-2 uppercase">{displayName}</h2>
+              {verified && (
               <div className="flex items-center gap-2 px-3 py-1 bg-green-500/10 border border-green-500/20 rounded-full mb-8">
                 <ShieldCheck className="w-3 h-3 text-green-500" />
-                <span className="text-[10px] font-bold text-green-500 uppercase tracking-widest">Verified Member</span>
+                <span className="text-[10px] font-bold text-green-500 uppercase tracking-widest">License verified</span>
               </div>
+              )}
+              {!verified && (
+              <div className="flex items-center gap-2 px-3 py-1 bg-amber-500/10 border border-amber-500/30 rounded-full mb-8">
+                <ShieldCheck className="w-3 h-3 text-amber-400" />
+                <span className="text-[10px] font-bold text-amber-300 uppercase tracking-widest">
+                  Permit required for booking
+                </span>
+              </div>
+              )}
               <div className="w-full space-y-6 text-left">
                 {[
                   { label: 'Full Name', value: displayName, Icon: User },
@@ -92,30 +128,47 @@ export default function Dashboard() {
             <div className="space-y-4">
               <div className="flex items-center justify-between p-4 rounded-2xl bg-black/20 border border-white/5">
                 <div className="flex items-center gap-3">
-                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center bg-current/5 ${licenseFile ? 'text-green-500' : 'text-red-500'}`}>
+                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center bg-current/5 ${licenseStatusClass}`}>
                     <ShieldCheck className="w-4 h-4" />
                   </div>
                   <div>
-                    <div className="text-xs font-bold">Driver&apos;s License</div>
-                    <div className={`text-[9px] font-black uppercase tracking-widest ${licenseStatusClass}`}>{licenseStatus}</div>
-                    {licenseFile && (
-                      <div className={`text-[10px] mt-1 ${current.subtext}`}>{licenseFile.name}</div>
+                    <div className="text-xs font-bold">Driver&apos;s license (Cloudinary)</div>
+                    <div className={`text-[9px] font-black uppercase tracking-widest ${licenseStatusClass}`}>{licenseLabel}</div>
+                    {user?.permis_picture ? (
+                      <a
+                        href={user.permis_picture}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={`text-[10px] mt-2 inline-block underline ${current.subtext}`}
+                      >
+                        View uploaded file
+                      </a>
+                    ) : (
+                      <p className={`text-[10px] mt-2 ${current.subtext}`}>Upload a photo or PDF of your permit.</p>
                     )}
                   </div>
                 </div>
               </div>
+              {licenseError && (
+                <p className="text-xs text-red-300">{licenseError}</p>
+              )}
               <input
                 id="license-upload"
                 type="file"
                 accept="image/*,application/pdf"
                 className="hidden"
-                onChange={(event) => setLicenseFile(event.target.files?.[0] ?? null)}
+                disabled={licenseBusy || !user?.id}
+                onChange={(event) => {
+                  const file = event.target.files?.[0] ?? null;
+                  void handleLicenseFile(file);
+                  event.target.value = '';
+                }}
               />
               <label
                 htmlFor="license-upload"
-                className="w-full mt-4 py-4 rounded-2xl border-2 border-dashed border-white/10 flex items-center justify-center gap-3 text-[10px] font-black uppercase tracking-widest hover:bg-white/5 transition-all cursor-pointer"
+                className={`w-full mt-4 py-4 rounded-2xl border-2 border-dashed border-white/10 flex items-center justify-center gap-3 text-[10px] font-black uppercase tracking-widest hover:bg-white/5 transition-all cursor-pointer ${licenseBusy ? 'opacity-50 pointer-events-none' : ''}`}
               >
-                <Upload className="w-4 h-4" /> {licenseFile ? 'Replace Document' : 'Upload Document'}
+                <Upload className="w-4 h-4" /> {licenseBusy ? 'Uploading...' : user?.permis_picture ? 'Replace document' : 'Upload document'}
               </label>
             </div>
           </motion.div>

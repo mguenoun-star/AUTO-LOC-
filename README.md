@@ -1,36 +1,61 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+🏎️ AUTO-LOC
+Application web de location de véhicules premium construite avec Next.js, Supabase (PostgreSQL, Auth) et Cloudinary.
 
-## Getting Started
-
-First, run the development server:
-
-```bash
+🚀 Getting Started
+Bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+Ouvrir http://localhost:3000.
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+🏗️ Architecture & Stack
+1. Gestion des Données
+L'architecture sépare les données selon leur nature pour optimiser les coûts et les performances :
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Données Structurées (Supabase / PostgreSQL) :
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+profiles : Comptes (nom, email, rôle admin/host/user).
 
-## Learn More
+vehicles : Catalogue (nom, prix, transmission, etc.). Inclut une colonne pictures de type TEXT[] et une colonne fts pour la recherche.
 
-To learn more about Next.js, take a look at the following resources:
+bookings : Relations clients/véhicules et états des réservations.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Données Non-Structurées (Cloudinary) :
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Hébergement des photos de véhicules et avatars.
 
-## Deploy on Vercel
+Utilisation de l'API Cloudinary pour le redimensionnement dynamique (optimisation du poids des images côté client).
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+2. Analyse Stratégique (CAPEX vs OPEX)
+Le choix du Serverless (Vercel + Supabase) permet de transformer un investissement initial lourd (CAPEX - serveurs physiques, maintenance, clim) en coûts opérationnels variables (OPEX).
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Scalabilité : L'infrastructure s'adapte automatiquement au trafic sans gestion manuelle de serveurs.
+
+Performance : Utilisation de l'indexation GIN sur PostgreSQL pour des recherches instantanées et du CDN de Cloudinary pour une livraison d'image ultra-rapide.
+
+🛠️ Configuration Technique Spécifique
+Schéma de Recherche & Médias
+Nous utilisons le Full Text Search (FTS) de Postgres pour permettre aux utilisateurs de trouver des véhicules par mots-clés (ex: "BMW sport noir").
+
+SQL
+-- Ajout de la colonne pictures (Array de strings pour IDs Cloudinary)
+ALTER TABLE public.vehicles 
+ADD COLUMN pictures TEXT[] NOT NULL DEFAULT '{}';
+
+-- Configuration de la recherche textuelle performante
+ALTER TABLE public.vehicles
+ADD COLUMN fts tsvector GENERATED ALWAYS AS (
+  to_tsvector('french', name || ' ' || type)
+) STORED;
+
+CREATE INDEX vehicles_fts_idx ON public.vehicles USING GIN (fts);
+Variables d'Environnement (.env)
+Bash
+NEXT_PUBLIC_SUPABASE_URL=your_project_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_anon_key
+NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME=your_cloud_name
+👥 Rôles & Permissions
+User : Consulte et loue des véhicules.
+
+Host : Propose ses véhicules et gère ses annonces.
+
+Admin : Modère les annonces (approbation) et gère la flotte globale.

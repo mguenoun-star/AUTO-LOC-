@@ -12,6 +12,8 @@ import { useAuth } from '@/context/AuthContext';
 import { listAdminVehicles } from '@/services/adminApi';
 import { createUserReservation } from '@/services/reservationStore';
 import { Car } from '@/types';
+import { hasVerifiedLicense } from '@/lib/licenseGate';
+import Link from 'next/link';
 
 const fallbackCar: Car = {
   id: 'demo-car',
@@ -83,13 +85,22 @@ function BookingContent() {
   const handleNext = async () => {
     if (step < 2) {
       if (car.id === 'demo-car') {
-        alert("Veuillez d'abord sélectionner un vrai véhicule depuis la page Fleet.");
+        alert('Select a real vehicle from the Fleet page first.');
+        return;
+      }
+      if (!user?.id) {
+        alert('Sign in to complete a booking.');
+        router.push('/login');
+        return;
+      }
+      if (!hasVerifiedLicense(user)) {
+        alert('Upload your driver license on your dashboard. It must be verified by an admin before you can book.');
         return;
       }
       setSubmitting(true);
       try {
         const { startDate, endDate } = parseDuration(duration);
-        const userId = user?.id ?? 'guest';
+        const userId = user.id;
         await createUserReservation(userId, car.id, {
           startDate,
           endDate,
@@ -107,9 +118,27 @@ function BookingContent() {
     }
   };
 
+  const bookingBlocked = user && !hasVerifiedLicense(user);
+
   return (
     <div className={`min-h-screen pt-32 pb-20 px-6 ${current.bg} ${current.text}`}>
       <div className="max-w-5xl mx-auto">
+        {!user?.id && step === 1 && (
+          <div className="mb-8 rounded-2xl border border-amber-500/40 bg-amber-500/10 px-5 py-4 text-sm text-amber-100">
+            Sign in required to reserve.{' '}
+            <Link href="/login" className="underline font-bold">
+              Login
+            </Link>
+          </div>
+        )}
+        {bookingBlocked && step === 1 && (
+          <div className="mb-8 rounded-2xl border border-red-500/40 bg-red-500/10 px-5 py-4 text-sm text-red-100">
+            Upload your permit (photo/PDF via Cloudinary) on your dashboard. An administrator must approve it before booking.{' '}
+            <Link href="/dashboard" className="underline font-bold">
+              Go to Dashboard
+            </Link>
+          </div>
+        )}
         <button onClick={() => router.back()} className="flex items-center gap-3 text-[10px] font-black uppercase tracking-widest opacity-60 hover:opacity-100 mb-12 transition-all">
           <ChevronLeft className="w-4 h-4" /> Back to Collection
         </button>
@@ -187,7 +216,13 @@ function BookingContent() {
 
             <button
               onClick={handleNext}
-              disabled={submitting}
+              disabled={
+                submitting ||
+                (step === 1 &&
+                  ((!user?.id ||
+                    !!bookingBlocked ||
+                    car.id === 'demo-car')))
+              }
               className={`w-full py-6 rounded-[2rem] font-black uppercase text-xs tracking-[0.4em] transition-all shadow-xl hover:scale-[1.02] active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed ${current.btn}`}
             >
               {submitting ? 'Sending...' : step === 2 ? 'Go to Dashboard' : 'Send Reservation Request'}

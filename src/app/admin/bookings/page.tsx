@@ -52,6 +52,7 @@ export default function AdminBookings() {
     finally { setLoading(false); setBusyId(null); }
   };
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { void loadBookings(status); }, [status]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const startEdit = (b: AdminBooking) => { setEditingId(b.id); setDraft({ startDate: b.startDate, endDate: b.endDate, status: b.status }); };
